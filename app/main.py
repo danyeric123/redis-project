@@ -8,8 +8,10 @@ def main():
     # Uncomment this to pass the first stage
     #
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
-    server_socket.accept() # wait for client
-
+    client, addr = server_socket.accept()  # wait for client
+    data = client.recv(1024)  # receive data from client
+    if data.strip() == b"PING":
+        client.send(b"+PONG\r\n")
 
 if __name__ == "__main__":
     main()
