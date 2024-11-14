@@ -11,7 +11,7 @@ def main():
     client, addr = server_socket.accept()  # wait for client
     data = client.recv(1024)  # receive data from client
     if data.strip() == b"PING":
-        client.send(b"+PONG\r\n")
+        iclient.send(b"+PONG\r\n")
 
 if __name__ == "__main__":
     main()
