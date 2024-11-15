@@ -1,6 +1,8 @@
 import socket
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
+from threading import Timer
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -24,34 +26,59 @@ class RedisServer:
             logging.info("Received data: %s", data.decode())
             self.handle_command(data.decode().lower())
 
-    def set(self, key: str, value: str) -> str:
+    def set(self, key: str, value: str, exp: int) -> str:
         self.storage[key] = value
+        Timer(exp / 1000, self._clear_key, (key,)).start()
         return "+OK\r\n"
+    
+    def _clear_key(self, key: str)-> None:
+        del self.storage[key]
 
     def get(self, key: str) -> str:
         return f"+{self.storage.get(key, 'nil')}\r\n"
+    
+    def parse_command(self, data: str) -> tuple[str, list[str]]:
+        """
+        Parse the Redis protocol command and extract the command and its arguments.
+        The request is a bulk string with the following format:
+        *<number of arguments>CRLF $<length of argument 1>CRLF <argument 1>CRLF ...
+        For example, the command "SET key value" is represented as:
+        *3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n
 
-    def handle_command(self, command: str) -> str:
+        This function splits the data string and extracts the command and arguments.
+        """
+        parts = re.split(r'\s+', data)
+        command = parts[2].lower()
+        args = parts[4::2]
+        return command, args
+
+    def handle_command(self, raw_command: str) -> str:
         """
         Handle the Redis command and send the response,
         or return an error message if the command is not recognized
         """
-        logging.info("Handling command: %s", command)
-        if "ping" in command:
+        logging.info("Handling command: %s", raw_command)
+        command, args = self.parse_command(raw_command)
+        logging.info("Command: %s, Args: %s", command, args)
+        if "ping" == command:
             pong: str = "+PONG\r\n"
             self._connection.sendall(pong.encode()) 
-        elif "echo" in command:
-            echo_message = command.split()[-1]
+        elif "echo" == command:
+            echo_message = args[0]
             echo: str = f"+{echo_message}\r\n"
             logging.info("Echoing data: %s", echo_message)
             self._connection.sendall(echo.encode())
-        elif "set" in command:
-            key, value = command.split()[-3], command.split()[-1]
-            response: str = self.set(key, value)
+        elif "set" == command:
+            key, value = args[0], args[1]
+            expiration = None
+            if len(args) > 2 and args[2] == "px":
+                expiration = int(args[3])
+            response: str = self.set(key, value, expiration)
             self._connection.sendall(response.encode())
-        elif "get" in command:
-            key = command.split()[-1]
+        elif "get" == command:
+            key = args[0]
             response: str = self.get(key)
+            logging.info("Sending response: %s", response)
             self._connection.sendall(response.encode())
         else:
             error: str = "-ERR unknown command\r\n"
