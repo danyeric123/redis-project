@@ -17,6 +17,11 @@ def handle_client(connection: socket.socket, address: tuple[str, int]) -> None:
                 if "ping" in data.decode().lower():
                     pong: str = "+PONG\r\n"
                     connection.sendall(pong.encode())
+                elif "echo" in data.decode().lower():
+                    echo_message = data.decode().split()[-1]
+                    echo: str = f"+{echo_message}\r\n"
+                    logging.info("Echoing data: %s", echo_message)
+                    connection.sendall(echo.encode())
         except Exception as e:
             logging.error("Error handling client %s: %s", address, e)
         finally:
