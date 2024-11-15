@@ -15,12 +15,6 @@ class RedisServer:
     def __init__(self, connection: socket.socket) -> None:
         self.storage = {}
         self._connection = connection
-        self._commands = {
-            "ping": self.ping,
-            "echo": self.echo,
-            "set": self.set,
-            "get": self.get
-        }
 
     def run(self) -> None:
         while True:
