@@ -28,14 +28,18 @@ class RedisServer:
 
     def set(self, key: str, value: str, exp: int) -> str:
         self.storage[key] = value
-        Timer(exp / 1000, self._clear_key, (key,)).start()
+        if exp is not None:
+            Timer(exp / 1000, self._clear_key, (key,)).start()
         return "+OK\r\n"
     
     def _clear_key(self, key: str)-> None:
         del self.storage[key]
 
     def get(self, key: str) -> str:
-        return f"+{self.storage.get(key, 'nil')}\r\n"
+        value = self.storage.get(key)
+        if value is None:
+            return "$-1\r\n"
+        return f"${len(value)}\r\n{value}\r\n"
     
     def parse_command(self, data: str) -> tuple[str, list[str]]:
         """
